@@ -1,0 +1,404 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitness Tracker App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; padding-bottom: env(safe-area-inset-bottom); }
+        .content { padding: 20px; display: none; } /* Hide all content by default */
+        .content.active { display: block; } /* Show only active content */
+        .schedule-item, .progress-item, .diet-item, .today-item { background: white; padding: 10px; margin: 5px 0; border-radius: 5px; }
+        .exercise-details, .warmup-details, .recovery-details { margin-left: 20px; }
+        .phase-marker { font-weight: bold; color: #4CAF50; }
+        #calendar { margin-top: 10px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .calendar-day { padding: 10px; text-align: center; border-radius: 5px; cursor: pointer; }
+        .completed { background-color: #4CAF50; color: white; }
+        .missed { background-color: #ff4444; color: white; }
+        .future { background-color: #ccc; }
+        .today { background-color: #2196F3; color: white; border: 2px solid #000; }
+        img { max-width: 100px; height: auto; margin: 5px 0; }
+        .content-container { min-height: 100vh; padding-bottom: calc(70px + env(safe-area-inset-bottom)); box-sizing: border-box; } /* Space for bottom navbar plus safe area */
+        .navbar { 
+            position: fixed !important; 
+            bottom: 0; 
+            left: 0; 
+            right: 0; 
+            z-index: 1000; 
+            padding: 0.5rem 1rem; 
+            padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); 
+            background-color: #343a40 !important;
+        }
+        .navbar-nav { display: flex; flex-direction: row; width: 100%; justify-content: space-around; }
+        .nav-link { color: white !important; text-align: center; padding: 10px !important; }
+        .nav-link:hover { background-color: #555; }
+    </style>
+</head>
+<body>
+    <script>
+        let today = new Date('2025-05-26T16:18:00Z'); // 07:18 PM EEST (UTC+3)
+        console.log("Global today initialized:", today, today instanceof Date);
+    </script>
+
+    <div class="content-container">
+        <div id="today" class="content active">
+            <h2 class="mb-4">Today's Workout</h2>
+            <div id="todayWorkout" class="today-item">
+                <script>
+                    console.log("Today's Workout - today:", today, today instanceof Date);
+
+                    const startDate = new Date('2025-04-28');
+                    const weeksSinceStart = Math.floor((today - startDate) / (1000 * 60 * 60 * 24 * 7)) + 1;
+                    let phase = 1;
+                    let phaseLabel = 'Phase 1: Weeks 1-8';
+                    if (weeksSinceStart > 8 && weeksSinceStart <= 16) {
+                        phase = 2;
+                        phaseLabel = 'Phase 2: Weeks 9-16';
+                    } else if (weeksSinceStart > 16) {
+                        phase = 3;
+                        phaseLabel = 'Phase 3: Weeks 17-24';
+                    }
+                    let weekGroup = weeksSinceStart <= 2 ? 'Weeks 1-2' : 'Weeks 3-8';
+                    if (phase === 2) weekGroup = '';
+                    if (phase === 3) weekGroup = '';
+
+                    const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
+                    let workoutHtml = `<h3 class="mb-3">${dayOfWeek}, ${phaseLabel} (${weekGroup})</h3>`;
+
+                    const warmUpHtml = `
+                        <div class="warmup-details">
+                            <h4 class="mb-2">Warm-Up (5-10 min)</h4>
+                            <p>Light Cardio: Treadmill Walk at 4-5 km/h <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                            <p>Dynamic Stretches:</p>
+                            <p>Arm Circles: 10 forward, 10 backward (30 sec) <br><img src="placeholder://exercise-image/arm-circles.jpg" alt="Arm Circles"></p>
+                            <p>Leg Swings: 10 forward/back, 10 side-to-side per leg (1 min) <br><img src="placeholder://exercise-image/leg-swings.jpg" alt="Leg Swings"></p>
+                            <p>Torso Twists: 10 per side (30 sec) <br><img src="placeholder://exercise-image/torso-twists.jpg" alt="Torso Twists"></p>
+                            <p>High Knees: 30 sec <br><img src="placeholder://exercise-image/high-knees.jpg" alt="High Knees"></p>
+                            <p>Bodyweight Squats: 10 reps <br><img src="placeholder://exercise-image/bodyweight-squats.jpg" alt="Bodyweight Squats"></p>
+                        </div>
+                    `;
+                    const workoutHtmlSection = `
+                        <div class="exercise-details">
+                            <h4 class="mb-2">Workout</h4>
+                            ${dayOfWeek === 'Monday' ? `
+                                <p>Barbell Bench Press: ${phase === 1 ? '3x12-15 (20-30 kg)' : phase === 2 ? '4x8-12 (30-50 kg)' : '4-5x6-10 (40-60 kg)'} <br><img src="placeholder://exercise-image/barbell-bench-press.jpg" alt="Barbell Bench Press"></p>
+                                <p>${phase >= 2 ? 'Barbell Squats: ' + (phase === 2 ? '4x8-12 (30-50 kg)' : '4-5x6-10 (40-60 kg)') + ' <br><img src="placeholder://exercise-image/barbell-squats.jpg" alt="Barbell Squats">' : ''}</p>
+                                <p>Dumbbell Rows: ${phase === 1 ? '3x12-15 per arm (5-8 kg)' : phase === 2 ? '4x8-12 per arm (8-12 kg)' : '4-5x6-10 (12-20 kg)'} <br><img src="placeholder://exercise-image/dumbbell-rows.jpg" alt="Dumbbell Rows"></p>
+                                <p>${phase === 1 ? 'Weighted Ball Russian Twists: 3x15 (4-6 kg) <br><img src="placeholder://exercise-image/weighted-ball-russian-twists.jpg" alt="Weighted Ball Russian Twists">' : phase === 2 ? 'Decline Oblique Twists: 4x12 <br><img src="placeholder://exercise-image/decline-oblique-twists.jpg" alt="Decline Oblique Twists">' : 'Weighted Ball Slams: 4-5x10 (4-6 kg) <br><img src="placeholder://exercise-image/weighted-ball-slams.jpg" alt="Weighted Ball Slams">'}</p>
+                                <p>Bodyweight Push-Ups: ${phase === 1 ? '3x10-15' : phase === 2 ? '4x8-12' : '4-5x6-10'} <br><img src="placeholder://exercise-image/bodyweight-push-ups.jpg" alt="Bodyweight Push-Ups"></p>
+                                <p>${phase === 1 ? 'Decline Sit-Ups: 3x15 <br><img src="placeholder://exercise-image/decline-sit-ups.jpg" alt="Decline Sit-Ups">' : phase === 2 ? 'Kettlebell Swings: 4x12 (12-16 kg) <br><img src="placeholder://exercise-image/kettlebell-swings.jpg" alt="Kettlebell Swings">' : 'Decline Leg Raises with Twist: 5x10 <br><img src="placeholder://exercise-image/decline-leg-raises-with-twist.jpg" alt="Decline Leg Raises with Twist">'}</p>
+                            ` : dayOfWeek === 'Tuesday' ? `
+                                <p>Treadmill: ${phase === 1 ? (weeksSinceStart <= 2 ? '25 min at 5 km/h' : '25 min at 5.5-6 km/h') : phase === 2 ? '30-40 min at 5.5-6.5 km/h with intervals' : '40-50 min at 6-7 km/h with intervals'} <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                                <p>Boxing Bag: ${phase === 1 ? '3-4 rounds, 2 min each (Jabs, Jab+Cross, Jab+Cross+Hook, Freestyle)' : phase === 2 ? '4-5 rounds, 2-3 min each' : '5-6 rounds, 3 min each'} <br><img src="placeholder://exercise-image/boxing-bag-punches.jpg" alt="Boxing Bag Punches"></p>
+                            ` : dayOfWeek === 'Wednesday' ? `
+                                <p>Dumbbell Shoulder Press: ${phase === 1 ? '3x12-15 (5-8 kg)' : phase === 2 ? '4x8-12 (8-12 kg)' : '4-5x6-10 (12-15 kg)'} <br><img src="placeholder://exercise-image/dumbbell-shoulder-press.jpg" alt="Dumbbell Shoulder Press"></p>
+                                <p>Barbell Bicep Curls: ${phase === 1 ? '3x12-15 (15-20 kg)' : phase === 2 ? '4x8-12 (20-25 kg)' : '4-5x6-10 (25-30 kg)'} <br><img src="placeholder://exercise-image/barbell-bicep-curls.jpg" alt="Barbell Bicep Curls"></p>
+                                <p>Dumbbell Tricep Overhead Extension: ${phase === 1 ? '3x12-15 (5-8 kg)' : phase === 2 ? '4x8-12 (8-12 kg)' : '4-5x6-10 (12-15 kg)'} <br><img src="placeholder://exercise-image/dumbbell-tricep-overhead-extension.jpg" alt="Dumbbell Tricep Overhead Extension"></p>
+                                <p>Boxing Bag Punches: ${phase === 1 ? '3x1 min (light jabs)' : phase === 2 ? '3x2 min (jabs and crosses)' : '3x3 min (full combos)'} <br><img src="placeholder://exercise-image/boxing-bag-punches.jpg" alt="Boxing Bag Punches"></p>
+                                <p>Ab Bench Crunches: ${phase === 1 ? '3x15' : phase === 2 ? '4x12' : '4-5x10'} <br><img src="placeholder://exercise-image/ab-bench-crunches.jpg" alt="Ab Bench Crunches"></p>
+                            ` : dayOfWeek === 'Thursday' ? `
+                                <p><strong>Option 1: Cardio</strong> Treadmill ${phase === 1 ? '20-30 min at 5 km/h' : phase === 2 ? '30-40 min at 5.5-6.5 km/h' : '40-50 min at 6-7 km/h'} or Boxing ${phase === 1 ? '3x2 min rounds' : phase === 2 ? '4x2 min rounds' : '5x3 min rounds'} <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                                <p><strong>Option 2: Active Recovery</strong> Light Treadmill Walk 20 min at 3-4 km/h <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                            ` : dayOfWeek === 'Friday' ? `
+                                <p>Barbell Deadlifts: ${phase === 1 ? '3x12-15 (30-40 kg)' : phase === 2 ? '4x8-12 (40-50 kg)' : '4-5x6-10 (50-60 kg)'} <br><img src="placeholder://exercise-image/barbell-deadlifts.jpg" alt="Barbell Deadlifts"></p>
+                                <p>Kettlebell Lunges: ${phase === 1 ? '3x12-15 per leg (8-12 kg)' : phase === 2 ? '4x8-12 per leg (12-16 kg)' : '4-5x6-10 per leg (16-20 kg)'} <br><img src="placeholder://exercise-image/kettlebell-lunges.jpg" alt="Kettlebell Lunges"></p>
+                                <p>Dumbbell Calf Raises: ${phase === 1 ? '3x15-20 (8-10 kg)' : phase === 2 ? '4x12-15 (10-12 kg)' : '4-5x10-12 (12-15 kg)'} <br><img src="placeholder://exercise-image/dumbbell-calf-raises.jpg" alt="Dumbbell Calf Raises"></p>
+                                <p>Weighted Ball Sit-Ups: ${phase === 1 ? '3x15 (4-6 kg)' : phase === 2 ? '4x12 (6-8 kg)' : '4-5x10 (8-10 kg)'} <br><img src="placeholder://exercise-image/weighted-ball-sit-ups.jpg" alt="Weighted Ball Sit-Ups"></p>
+                                <p>Decline Oblique Twists: ${phase === 1 ? '3x15' : phase === 2 ? '4x12' : '4-5x10'} <br><img src="placeholder://exercise-image/decline-oblique-twists.jpg" alt="Decline Oblique Twists"></p>
+                            ` : dayOfWeek === 'Saturday' ? `
+                                <p>Light Treadmill Walk: 20 min at 3-4 km/h <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                            ` : dayOfWeek === 'Sunday' ? '' : ''}
+                        </div>
+                    `;
+                    const recoveryHtml = `
+                        <div class="recovery-details">
+                            <h4 class="mb-2">Recovery (5-10 min)</h4>
+                            <p>Hamstring Stretch: 20-30 sec per leg <br><img src="placeholder://exercise-image/hamstring-stretch.jpg" alt="Hamstring Stretch"></p>
+                            <p>Quad Stretch: 20-30 sec per leg <br><img src="placeholder://exercise-image/quad-stretch.jpg" alt="Quad Stretch"></p>
+                            <p>Chest Opener: 20-30 sec <br><img src="placeholder://exercise-image/chest-opener.jpg" alt="Chest Opener"></p>
+                            <p>Shoulder Stretch: 20-30 sec per arm <br><img src="placeholder://exercise-image/shoulder-stretch.jpg" alt="Shoulder Stretch"></p>
+                            <p>Cat-Cow Stretch: 8-10 cycles (1 min) <br><img src="placeholder://exercise-image/cat-cow-stretch.jpg" alt="Cat-Cow Stretch"></p>
+                        </div>
+                    `;
+
+                    workoutHtml += warmUpHtml + workoutHtmlSection + (dayOfWeek !== 'Sunday' ? recoveryHtml : '<p>No recovery needed today.</p>');
+                    document.getElementById('todayWorkout').innerHTML = workoutHtml;
+                </script>
+            </div>
+        </div>
+
+        <div id="schedule" class="content">
+            <h2 class="mb-4">Schedule</h2>
+            <div class="schedule-item">
+                <h3>Phase 1: Weeks 1-8 <span class="phase-marker">(You Are Here)</span></h3>
+                <h4>Weeks 1-2</h4>
+                <p><strong>Monday: Full-Body Strength</strong></p>
+                <div class="warmup-details">
+                    <h4 class="mb-2">Warm-Up (5-10 min)</h4>
+                    <p>Light Cardio: Treadmill Walk at 4-5 km/h <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                    <p>Dynamic Stretches:</p>
+                    <p>Arm Circles: 10 forward, 10 backward (30 sec) <br><img src="placeholder://exercise-image/arm-circles.jpg" alt="Arm Circles"></p>
+                    <p>Leg Swings: 10 forward/back, 10 side-to-side per leg (1 min) <br><img src="placeholder://exercise-image/leg-swings.jpg" alt="Leg Swings"></p>
+                    <p>Torso Twists: 10 per side (30 sec) <br><img src="placeholder://exercise-image/torso-twists.jpg" alt="Torso Twists"></p>
+                    <p>High Knees: 30 sec <br><img src="placeholder://exercise-image/high-knees.jpg" alt="High Knees"></p>
+                    <p>Bodyweight Squats: 10 reps <br><img src="placeholder://exercise-image/bodyweight-squats.jpg" alt="Bodyweight Squats"></p>
+                </div>
+                <div class="exercise-details">
+                    <h4 class="mb-2">Workout</h4>
+                    <p>Barbell Bench Press: 3x12-15 (20-30 kg) <br><img src="placeholder://exercise-image/barbell-bench-press.jpg" alt="Barbell Bench Press"></p>
+                    <p>Dumbbell Goblet Squat (Kettlebell): 3x12-15 (8-12 kg) <br><img src="placeholder://exercise-image/dumbbell-goblet-squat.jpg" alt="Dumbbell Goblet Squat"></p>
+                    <p>Dumbbell Rows: 3x12-15 per arm (5-8 kg) <br><img src="placeholder://exercise-image/dumbbell-rows.jpg" alt="Dumbbell Rows"></p>
+                    <p>Weighted Ball Russian Twists: 3x15 (4-6 kg) <br><img src="placeholder://exercise-image/weighted-ball-russian-twists.jpg" alt="Weighted Ball Russian Twists"></p>
+                    <p>Bodyweight Push-Ups: 3x10-15 <br><img src="placeholder://exercise-image/bodyweight-push-ups.jpg" alt="Bodyweight Push-Ups"></p>
+                    <p>Decline Sit-Ups: 3x15 <br><img src="placeholder://exercise-image/decline-sit-ups.jpg" alt="Decline Sit-Ups"></p>
+                </div>
+                <div class="recovery-details">
+                    <h4 class="mb-2">Recovery (5-10 min)</h4>
+                    <p>Hamstring Stretch: 20-30 sec per leg <br><img src="placeholder://exercise-image/hamstring-stretch.jpg" alt="Hamstring Stretch"></p>
+                    <p>Quad Stretch: 20-30 sec per leg <br><img src="placeholder://exercise-image/quad-stretch.jpg" alt="Quad Stretch"></p>
+                    <p>Chest Opener: 20-30 sec <br><img src="placeholder://exercise-image/chest-opener.jpg" alt="Chest Opener"></p>
+                    <p>Shoulder Stretch: 20-30 sec per arm <br><img src="placeholder://exercise-image/shoulder-stretch.jpg" alt="Shoulder Stretch"></p>
+                    <p>Cat-Cow Stretch: 8-10 cycles (1 min) <br><img src="placeholder://exercise-image/cat-cow-stretch.jpg" alt="Cat-Cow Stretch"></p>
+                </div>
+                <p><strong>Tuesday: Cardio</strong></p>
+                <div class="warmup-details">
+                    <h4 class="mb-2">Warm-Up (5-10 min)</h4>
+                    <p>Same as Monday</p>
+                </div>
+                <div class="exercise-details">
+                    <h4 class="mb-2">Workout</h4>
+                    <p>Treadmill: 25 min at 5 km/h <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                    <p>Boxing Bag: 3-4 rounds, 2 min each (Jabs, Jab+Cross, Jab+Cross+Hook, Freestyle) <br><img src="placeholder://exercise-image/boxing-bag-punches.jpg" alt="Boxing Bag Punches"></p>
+                </div>
+                <div class="recovery-details">
+                    <h4 class="mb-2">Recovery (5-10 min)</h4>
+                    <p>Same as Monday</p>
+                </div>
+                <p><strong>Wednesday: Upper Body Strength</strong></p>
+                <div class="warmup-details">
+                    <h4 class="mb-2">Warm-Up (5-10 min)</h4>
+                    <p>Same as Monday</p>
+                </div>
+                <div class="exercise-details">
+                    <h4 class="mb-2">Workout</h4>
+                    <p>Dumbbell Shoulder Press: 3x12-15 (5-8 kg) <br><img src="placeholder://exercise-image/dumbbell-shoulder-press.jpg" alt="Dumbbell Shoulder Press"></p>
+                    <p>Barbell Bicep Curls: 3x12-15 (15-20 kg) <br><img src="placeholder://exercise-image/barbell-bicep-curls.jpg" alt="Barbell Bicep Curls"></p>
+                    <p>Dumbbell Tricep Overhead Extension: 3x12-15 (5-8 kg) <br><img src="placeholder://exercise-image/dumbbell-tricep-overhead-extension.jpg" alt="Dumbbell Tricep Overhead Extension"></p>
+                    <p>Boxing Bag Punches: 3x1 min (light jabs) <br><img src="placeholder://exercise-image/boxing-bag-punches.jpg" alt="Boxing Bag Punches"></p>
+                    <p>Ab Bench Crunches: 3x15 <br><img src="placeholder://exercise-image/ab-bench-crunches.jpg" alt="Ab Bench Crunches"></p>
+                </div>
+                <div class="recovery-details">
+                    <h4 class="mb-2">Recovery (5-10 min)</h4>
+                    <p>Same as Monday</p>
+                </div>
+                <p><strong>Thursday: Cardio or Active Recovery</strong></p>
+                <div class="exercise-details">
+                    <h4 class="mb-2">Workout</h4>
+                    <p><strong>Option 1: Cardio</strong> Treadmill 20-30 min at 5 km/h or Boxing 3x2 min rounds <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                    <p><strong>Option 2: Active Recovery</strong> Light Treadmill Walk 20 min at 3-4 km/h <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                </div>
+                <p><strong>Friday: Lower Body + Core</strong></p>
+                <div class="warmup-details">
+                    <h4 class="mb-2">Warm-Up (5-10 min)</h4>
+                    <p>Same as Monday</p>
+                </div>
+                <div class="exercise-details">
+                    <h4 class="mb-2">Workout</h4>
+                    <p>Barbell Deadlifts: 3x12-15 (30-40 kg) <br><img src="placeholder://exercise-image/barbell-deadlifts.jpg" alt="Barbell Deadlifts"></p>
+                    <p>Kettlebell Lunges: 3x12-15 per leg (8-12 kg) <br><img src="placeholder://exercise-image/kettlebell-lunges.jpg" alt="Kettlebell Lunges"></p>
+                    <p>Dumbbell Calf Raises: 3x15-20 (8-10 kg) <br><img src="placeholder://exercise-image/dumbbell-calf-raises.jpg" alt="Dumbbell Calf Raises"></p>
+                    <p>Weighted Ball Sit-Ups: 3x15 (4-6 kg) <br><img src="placeholder://exercise-image/weighted-ball-sit-ups.jpg" alt="Weighted Ball Sit-Ups"></p>
+                    <p>Decline Oblique Twists: 3x15 <br><img src="placeholder://exercise-image/decline-oblique-twists.jpg" alt="Decline Oblique Twists"></p>
+                </div>
+                <div class="recovery-details">
+                    <h4 class="mb-2">Recovery (5-10 min)</h4>
+                    <p>Same as Monday</p>
+                </div>
+                <p><strong>Saturday: Active Recovery</strong></p>
+                <div class="exercise-details">
+                    <h4 class="mb-2">Workout</h4>
+                    <p>Light Treadmill Walk: 20 min at 3-4 km/h <br><img src="placeholder://exercise-image/treadmill-walk.jpg" alt="Treadmill Walk"></p>
+                </div>
+                <p><strong>Sunday: Rest</strong></p>
+                <h4>Weeks 3-8</h4>
+                <p><strong>Monday:</strong> Same as Weeks 1-2, increase treadmill to 5.5-6 km/h if comfortable</p>
+                <p><strong>Tuesday:</strong> Cardio (Treadmill 25 min at 5.5-6 km/h, Boxing 3-4 rounds)</p>
+                <!-- Add remaining days -->
+            </div>
+            <div class="schedule-item">
+                <h3>Phase 2: Weeks 9-16</h3>
+                <p><strong>Monday: Full-Body Strength</strong></p>
+                <div class="exercise-details">
+                    <h4 class="mb-2">Workout</h4>
+                    <p>Barbell Bench Press: 4x8-12 (30-50 kg)</p>
+                    <p>Barbell Squats: 4x8-12 (30-50 kg)</p>
+                    <p>Dumbbell Rows: 4x8-12 per arm (8-12 kg)</p>
+                    <p>Decline Oblique Twists: 4x12</p>
+                    <p>Bodyweight Push-Ups: 4x8-12</p>
+                    <p>Kettlebell Swings: 4x12 (12-16 kg) <br><img src="placeholder://exercise-image/kettlebell-swings.jpg" alt="Kettlebell Swings"></p>
+                </div>
+                <p><strong>Tuesday:</strong> Cardio (Treadmill 30-40 min at 5.5-6.5 km/h with intervals, Boxing 4-5 rounds)</p>
+                <!-- Add remaining days -->
+            </div>
+            <div class="schedule-item">
+                <h3>Phase 3: Weeks 17-24</h3>
+                <p><strong>Monday: Full-Body Strength</strong></p>
+                <div class="exercise-details">
+                    <h4 class="mb-2">Workout</h4>
+                    <p>Barbell Bench Press: 4-5x6-10 (40-60 kg)</p>
+                    <p>Barbell Squats: 4-5x6-10 (40-60 kg)</p>
+                    <p>Dumbbell Rows: 4-5x6-10 (12-20 kg)</p>
+                    <p>Weighted Ball Slams: 4-5x10 (4-6 kg) <br><img src="placeholder://exercise-image/weighted-ball-slams.jpg" alt="Weighted Ball Slams"></p>
+                    <p>Bodyweight Push-Ups: 4-5x6-10</p>
+                    <p>Decline Leg Raises with Twist: 5x10 <br><img src="placeholder://exercise-image/decline-leg-raises-with-twist.jpg" alt="Decline Leg Raises with Twist"></p>
+                </div>
+                <p><strong>Tuesday:</strong> Cardio (Treadmill 40-50 min at 6-7 km/h with intervals, Boxing 5-6 rounds)</p>
+                <!-- Add remaining days -->
+            </div>
+        </div>
+
+        <div id="progress" class="content">
+            <h2 class="mb-4">Progress</h2>
+            <div class="row">
+                <div class="col-12 col-md-6">
+                    <label for="month" class="form-label">Select Month:</label>
+                    <input type="month" id="month" class="form-control" value="2025-05" onchange="renderCalendar()">
+                </div>
+            </div>
+            <div id="calendar"></div>
+            <div id="progressSummary"></div>
+            <script>
+                let progress = JSON.parse(localStorage.getItem('progress')) || {};
+                function renderCalendar() {
+                    const monthInput = document.getElementById('month').value;
+                    if (!monthInput) return;
+                    const [year, month] = monthInput.split('-').map(Number);
+                    const firstDay = new Date(year, month - 1, 1);
+                    const lastDay = new Date(year, month, 0);
+                    const daysInMonth = lastDay.getDate();
+                    const startingDay = firstDay.getDay();
+                    let html = '';
+                    for (let i = 0; i < startingDay; i++) {
+                        html += '<div class="calendar-day"></div>';
+                    }
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                        const date = new Date(year, month - 1, day);
+                        let className = progress[dateStr] ? 'completed' : date.getTime() === today.getTime() ? 'today' : '';
+                        if (date < today && !progress[dateStr]) className = 'missed';
+                        else if (date > today && !progress[dateStr]) className = 'future';
+                        html += `<div class="calendar-day ${className}" onclick="toggleDay('${dateStr}', this)">${day}</div>`;
+                    }
+                    document.getElementById('calendar').innerHTML = html;
+                    updateSummary();
+                }
+                function toggleDay(dateStr, element) {
+                    const date = new Date(dateStr);
+                    if (progress[dateStr]) {
+                        delete progress[dateStr];
+                        element.classList.remove('completed');
+                        if (date.getTime() === today.getTime()) {
+                            element.classList.add('today');
+                        } else if (date < today) {
+                            element.classList.add('missed');
+                        } else {
+                            element.classList.add('future');
+                        }
+                    } else {
+                        const day = date.toLocaleDateString('en-US', { weekday: 'long' });
+                        progress[dateStr] = `Completed ${day} workout`;
+                        element.classList.add('completed');
+                        if (date.getTime() === today.getTime()) {
+                            element.classList.add('today');
+                        }
+                    }
+                    localStorage.setItem('progress', JSON.stringify(progress));
+                    renderCalendar();
+                }
+                function updateSummary() {
+                    const completedDays = Object.keys(progress).length;
+                    document.getElementById('progressSummary').innerHTML = `<p class="mt-3">Total workouts completed: ${completedDays}</p>`;
+                }
+                renderCalendar();
+            </script>
+        </div>
+
+        <div id="diet" class="content">
+            <h2 class="mb-4">Diet</h2>
+            <div class="diet-item">
+                <h3>Calorie & Macro Goals</h3>
+                <p><strong>Calories:</strong> 1,800-2,200 kcal/day</p>
+                <p><strong>Protein:</strong> 170-240 g</p>
+                <p><strong>Carbs:</strong> 200-275 g</p>
+                <p><strong>Fats:</strong> 50-70 g</p>
+                <p><strong>Sweets:</strong> Limit to 100-150 kcal/day (e.g., dark chocolate)</p>
+            </div>
+            <div class="diet-item">
+                <h3>Sample Daily Meal Plan</h3>
+                <p><strong>Breakfast:</strong> 2 eggs + 2 egg whites, scrambled (140 kcal, 17g protein), 1 cup cooked oats with 1 tsp honey (200 kcal, 5g protein), 1 medium apple (100 kcal), Black coffee or tea (0 kcal)</p>
+                <p><strong>Lunch:</strong> 150g grilled chicken breast (165 kcal, 31g protein), 1 cup cooked quinoa (220 kcal, 8g protein), 2 cups steamed broccoli with 1 tsp olive oil (150 kcal), 1 tbsp dark chocolate (65 kcal)</p>
+                <p><strong>Post-Workout Snack:</strong> 1 scoop whey protein with water (120 kcal, 25g protein), 1 medium banana (90 kcal), 10 almonds (140 kcal)</p>
+                <p><strong>Dinner:</strong> 150g baked salmon (250 kcal, 25g protein), 1 medium sweet potato (100 kcal), 2 cups mixed greens with 1 tbsp olive oil + lemon (150 kcal), 1 square dark chocolate (50 kcal)</p>
+            </div>
+        </div>
+    </div>
+
+    <nav class="navbar fixed-bottom navbar-dark bg-dark">
+        <div class="navbar-nav">
+            <a class="nav-link" href="#" onclick="showSection('today')">Today's Workout</a>
+            <a class="nav-link" href="#" onclick="showSection('schedule')">Schedule</a>
+            <a class="nav-link" href="#" onclick="showSection('progress')">Progress</a>
+            <a class="nav-link" href="#" onclick="showSection('diet')">Diet</a>
+        </div>
+    </nav>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showSection(sectionId) {
+            document.querySelectorAll('.content').forEach(content => content.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+            event.preventDefault(); // Prevent default anchor behavior
+        }
+    </script>
+</body>
+</html>
